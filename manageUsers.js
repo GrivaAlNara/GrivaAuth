@@ -124,7 +124,6 @@ async function editUser(){
     await showusers();
     const id = parseInt(await ask(`Введите id для изменения1: `));
     const mode = (await ask(`Выберете:\n1. изменить email\n2. изменить пароль\n3. изменить всё\n\n`))[0];
-    var email = getUserEmail(id);
     var query;
 
     if(mode == "1" || mode == "3"){
