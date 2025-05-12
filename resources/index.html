@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html >
+<head>
+  <meta charset="UTF-8">
+  <title>Login Form on HTML5</title>
+  
+  
+  
+      <link rel="stylesheet" href="css/style.css">
+
+  
+</head>
+
+<body>
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paper Stack</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="container">
+	<section id="content">
+
+		<form id="loginForm" action = "/login" method = "POST">
+			<h1>Login Form</h1>
+			<input type="email" name="email" placeholder="Email" required>
+			<input type="password" name="password" placeholder="Password" required>
+
+			<div>
+			<input type="submit" value="Log in" />
+			<!---button>123<button--->
+			</div>
+		</form>
+
+
+
+
+	</section><!-- content -->
+</div><!-- container -->
+
+<script>
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+	formData = new FormData(e.target);
+    const response = await fetch('/login', {
+  		method: 'POST',
+  		headers: {'Content-Type': 'application/json', /* Указываем формат */},
+  		body: JSON.stringify({ email: formData.get("email"), password: formData.get("password") })
+    });
+
+	if(response.redirected){
+		window.location.href = response.url; 
+	} else if (response.status == 401){
+		alert("Неверный логин или пароль");
+	} else if (response.status == 403){
+		alert("Слишком много попыток входа, повторите попытку через минуту");
+	} else {
+		alert("Неизвестная ошибка");
+	}
+  });
+</script>
+
+</body>
+</html>
+  
+  
+</body>
+</html>

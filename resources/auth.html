@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html >
+<head>
+  <meta charset="UTF-8">
+  <title>Login Form on HTML5</title>
+      <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paper Stack</title>
+<link rel="stylesheet" type="text/css" href="style.css" />
+</head>
+<body>
+<div class="container">
+	<section id="content">
+
+		<form id="authForm" action = "/auth" method = "POST">
+			<h1>Login Form</h1>
+			<input type="text" name="code" placeholder="000000" required>
+			<div>
+			<input type="submit" value="Log in" />
+			<!---button>123<button--->
+			</div>
+		</form>
+
+
+
+
+	</section><!-- content -->
+</div><!-- container -->
+
+<script>
+  document.getElementById('authForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+	formData = new FormData(e.target);
+	const token = new URLSearchParams(window.location.search).get('token');
+	console.log(token);
+    const response = await fetch('/verify?token=' + token, {
+  		method: 'POST',
+  		headers: {'Content-Type': 'application/json', /* Указываем формат */},
+  		body: JSON.stringify({ code: formData.get("code") })
+    });
+
+	if(response.redirected){
+		window.location.href = response.url; 
+	} else if (response.status == 401){
+		alert("Неверный код");
+	} else {
+		alert("Неизвестная ошибка");
+	}
+  });
+</script>
+
+</body>
+</html>
+  
+  
+</body>
+</html>

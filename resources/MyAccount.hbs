@@ -1,0 +1,48 @@
+<form class="form-horizontal">
+<fieldset>
+
+<!-- Form Name -->
+<legend>Вход выполнен: <t style = "color:green">{{Email}}</t> <a href = "/logout">  Выйти из системы</a></legend>
+
+<!-- Textarea -->
+<div class="form-group">
+  <label style="font-size:3em;">Ваша работа</label>
+  <label id="message" style="color:green"></label>
+  <div>                     
+    <textarea style = "width: 700px; height: 150px; font-size:2em"  id="textarea" name="textarea">{{WorkText}}</textarea>
+  </div>
+</div>
+
+<!-- Button (Double) -->
+<div class="form-group">
+  
+  <div>
+    <button id="saveb" >Сохранить текст</button>
+    
+  </div>
+  	
+</div>
+
+<label style="font-size:3em;">Число дня:{{NumberOfTheDay}}</label>
+<label style="font-size:1em;">(меняется каждый час) </label>
+
+<script>
+    document.getElementById('saveb').addEventListener('click', async (e) => {
+    e.preventDefault();
+    const response = await fetch('/save-text', {
+  		method: 'POST',
+  		headers: {'Content-Type': 'application/json', /* Указываем формат */},
+  		body: JSON.stringify({ text: document.getElementById('textarea').value})
+    });
+
+    if(response.ok){
+      var date = new Date();
+      document.getElementById('message').innerText = "Сохранено " + date.getHours() + ":" + (date.getMinutes() < 10 ? "0" : "") + date.getMinutes();
+    } else {
+      alert("Неизвестная ошибка");
+    }
+    });
+</script>
+
+</fieldset>
+</form>
