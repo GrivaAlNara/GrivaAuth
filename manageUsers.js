@@ -201,8 +201,5 @@ async function editUser(){
         console.log("ОШИБКА" + err);
     }
   }
-
-  const sum = arr.reduce((acc, x) => acc + x, 0);
-  console.log(sum);
 })();
 

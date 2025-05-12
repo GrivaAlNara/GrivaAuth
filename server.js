@@ -196,9 +196,9 @@ async function sendCode(email, code){
   try {
     const info = await transporter.sendMail({
       from: 'GrivaProject@gmail.com',
-      to: email, // list of receivers
-      subject: "Вход в систему GrivaProject", // Subject line
-      text: `Добрый день. Ваш код доступа — ${code}. \n Если вы не запрашивали его, свяжитесь с вашим системынем администратором.`, // plain text body
+      to: email,
+      subject: "Вход в систему GrivaProject",
+      text: `Добрый день. Ваш код доступа — ${code}. \n Если вы не запрашивали его, свяжитесь с вашим системынем администратором.`,
     });
 
     log("Message sent: %s" + info.messageId);
@@ -235,11 +235,8 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/verify', async (req, res) => {
-
   var token = req.query.token;
   var {exists} = await GetUserByOTT(token);
-
-
   if(exists){
     res.sendFile(RESOURCES_DIR + '/auth.html');
   } else {
@@ -285,7 +282,6 @@ app.get('/logout', checkAuth, async (req, res) => {
   req.session.destroy();
   res.redirect("/login");
 });
-
 
 app.post('/save-text', checkAuth, async (req, res) => {
   try{
