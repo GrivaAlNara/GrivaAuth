@@ -10,11 +10,11 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@jthinking/hashes-node": "^0.0.7",
     "connect-sqlite3": "^0.9.15",
     "express": "^5.1.0",
     "express-handlebars": "^8.0.3",
     "express-session": "^1.18.1",
+    "node-gost-crypto": "^1.0.2",
     "nodemailer": "^7.0.3",
     "sqlite3": "^5.1.7"
   }

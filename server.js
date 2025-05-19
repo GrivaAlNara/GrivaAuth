@@ -1,5 +1,7 @@
-const http = require('http');
+const https = require('https');
 const fs = require('fs');
+const readline = require('readline');
+const EventEmitter = require('events');
 const path = require('path');
 const express = require('express');
 const app = express();
@@ -7,25 +9,28 @@ const sqlite3 = require('sqlite3');
 const crypto = require('crypto');
 const DB_PATH = path.join(__dirname, '/resources/Data.db');
 const exphbs = require('express-handlebars');
-const hashes = require('@jthinking/hashes-node');
+const { gostEngine } = require('node-gost-crypto');
 const db = new sqlite3.Database(DB_PATH);
 const PORT = 3000;
 const RESOURCES_DIR = path.join(__dirname, 'resources');
+const LOG_DIR = __dirname;
+const {ManageUsers, rl} = require('./manageUsers.js');
+var TERMINAL_MODE = false;
 
 const nodemailer = require("nodemailer");
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "INSERT YOUR AUTH USERNAME",
-    pass: "INSERT YOUR AUTH APP PASSWORD",
+    user: "INSERT YOUR EMAIL",
+    pass: "INSERT YOUR APP CODE",
   },
 });
 
 const session = require('express-session');
 var SQLiteStore = require('connect-sqlite3')(session);
 
-app.use(session({store: new SQLiteStore({dir: path.join(__dirname, 'resources'), db: "Data.db"}), dir: path.join(__dirname, 'resources'), secret: 'INSERT YOUR SECRET COOKIE KEY', resave: false, saveUninitialized: false, maxAge:1000 * 60 * 60 * 10}));
+app.use(session({store: new SQLiteStore({dir: path.join(__dirname, 'resources'), db: "Data.db"}), dir: path.join(__dirname, 'resources'), secret: 'INSERT YOUR SECRET', resave: false, saveUninitialized: false, maxAge:1000 * 60 * 60 * 10}));
 
 app.engine('hbs', exphbs.engine({
   extname: '.hbs', // Расширение файлов шаблонов
@@ -43,8 +48,9 @@ app.listen(PORT, () => {
 });
 
 function streebogHash(str){
-  const buf = Buffer.from(str, 'UTF-8');
-  return hashes.streebog256(buf);
+    const buffer = Buffer.from(str);
+    const digest = gostEngine.getGostDigest({name: 'GOST R 34.11', length: 256, version: 1994});
+    return (Buffer.from(digest.digest(buffer)).toString('hex'));
 }
 
 const IsValidUser = async (email, password) => {
@@ -62,7 +68,7 @@ const IsValidUser = async (email, password) => {
     catch (err) {
       log("Ошибка БД: " + err, "ERR")    
   }
-  if(users.length == 1 && users[0].Hashkey == streebogHash(password)){
+  if(users.length == 1 && users[0].Hashkey == streebogHash(users[0].salt + password)){
     return {id: users[0].ID, ban: users[0].BlockExpires > Date.now()}
   } else return false;
 }
@@ -120,7 +126,8 @@ async function generateUserOTT(UserId){
   var code = Math.floor(Math.random() * (999999 - 100000)) + 100000;
   try{
   await new Promise((resolve, reject) => {
-    db.run(`UPDATE USERS SET OTT = "${OTT}", OTTExpires = ${Date.now() + 1000 * 60 * 10}, AuthCode = "${code}", OTTAttempts = 0 WHERE ID = ${UserId}`, (err) => {
+    db.run(`UPDATE USERS SET OTT = "${OTT}", OTTExpires = ${Date.now() + 1000 * 60 * 10},
+       AuthCode = "${code}", OTTAttempts = 0 WHERE ID = ${UserId}`, (err) => {
       if(err) reject(err)
       else resolve(true);
     });
@@ -135,7 +142,8 @@ async function generateUserOTT(UserId){
 async function eraseUserOTT(UserId){
   try{
   await new Promise((resolve, reject) => {
-    db.run(`UPDATE USERS SET OTT = "", OTTExpires = 0, AuthCode = "", OTTAttempts = 0 WHERE ID = ${UserId}`, (err) => {
+    db.run(`UPDATE USERS SET OTT = "", OTTExpires = 0, 
+      AuthCode = "", OTTAttempts = 0 WHERE ID = ${UserId}`, (err) => {
       if(err) reject(err)
       else resolve(true);
     });
@@ -179,7 +187,7 @@ async function banUser(UserId){
   try{
   await new Promise((resolve, reject) => {
 
-    db.run(`UPDATE USERS SET BlockExpires = ${Date.now() + 1000 * 90} WHERE ID = ${UserId}`, (err) => {
+    db.run(`UPDATE USERS SET BlockExpires = ${Date.now() + 1000 * 60} WHERE ID = ${UserId}`, (err) => {
       if(err) reject(err)
       else resolve(true);
     });
@@ -195,10 +203,10 @@ async function banUser(UserId){
 async function sendCode(email, code){
   try {
     const info = await transporter.sendMail({
-      from: 'GrivaProject@gmail.com',
+      from: 'grivasender0@gmail.com',
       to: email,
       subject: "Вход в систему GrivaProject",
-      text: `Добрый день. Ваш код доступа — ${code}. \n Если вы не запрашивали его, свяжитесь с вашим системынем администратором.`,
+      text: `Добрый день. Ваш код доступа — ${code}. \n Если вы не запрашивали его, свяжитесь с вашим системным администратором.`,
     });
 
     log("Message sent: %s" + info.messageId);
@@ -224,9 +232,12 @@ app.get('/login', (req, res) => {
 app.post('/login', async (req, res) => {
   var user = await IsValidUser(req.body.email, req.body.password);
   if(!user){
-    res.status(401).send()
+    res.status(401).send();
+    //increaseAttempts(await GetUser(req));
+    log(req.body.email + " Отказано в доступе!");
   } else if(user.ban){
-    res.status(403).send()
+    res.status(403).send();
+    log(req.body.email + " Отказано в доступе, бан!");
   } else {
     var cred = await generateUserOTT(user.id);
     sendCode(req.body.email, cred.code);
@@ -235,8 +246,11 @@ app.post('/login', async (req, res) => {
 });
 
 app.get('/verify', async (req, res) => {
+
   var token = req.query.token;
   var {exists} = await GetUserByOTT(token);
+
+
   if(exists){
     res.sendFile(RESOURCES_DIR + '/auth.html');
   } else {
@@ -255,6 +269,7 @@ app.post('/verify', async (req, res) => {
       eraseUserOTT(user);
       res.redirect('/account');
     } else {
+      log("ID=" + user +" Отказано в доступе! Неверный одноразовый код!");
       if(await increaseAttempts(user) > 3){
         banUser(user);
         eraseUserOTT(user);
@@ -283,6 +298,7 @@ app.get('/logout', checkAuth, async (req, res) => {
   res.redirect("/login");
 });
 
+
 app.post('/save-text', checkAuth, async (req, res) => {
   try{
   await new Promise((resolve, reject) => {
@@ -304,7 +320,23 @@ app.post('/save-text', checkAuth, async (req, res) => {
 function log(message, type = 'info') {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}\n`;
-
   // Вывод в консоль
+  if (TERMINAL_MODE) return;
   console.log(logMessage.trim());
+  fs.appendFile(path.join(LOG_DIR, 'server.log'), logMessage, (err) => {
+    if (err) console.error('Ошибка записи в лог:', err);
+  });
 }
+
+console.log("Для переключения в режим управления пользовтелями введите T");
+
+rl.on('line', async (input) => {
+  if (TERMINAL_MODE) return;
+  if(input[0] == "T" || input[0] == "Т") {
+    TERMINAL_MODE = true;
+    while (TERMINAL_MODE){
+      TERMINAL_MODE = await ManageUsers();
+    }
+  }
+  console.log("Для переключения в режим управления пользовтелями введите T");
+});

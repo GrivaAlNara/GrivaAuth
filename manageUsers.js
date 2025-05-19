@@ -2,8 +2,9 @@ const path = require('path');
 const sqlite3 = require('sqlite3');
 const DB_PATH = path.join(__dirname, '/resources/Data.db');
 const crypto = require('crypto');
-const hashes = require('@jthinking/hashes-node');
+const { gostEngine } = require('node-gost-crypto');
 const db = new sqlite3.Database(DB_PATH);
+const fs = require('fs');
 
 const readline = require('readline');
 
@@ -11,15 +12,17 @@ const readline = require('readline');
  * @param {string} question
  * @returns {Promise<string>}
  */
-async function ask(question) {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
-  });
 
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
+
+
+
+async function ask(question) {
   return new Promise((resolve, reject) => {
     rl.question(question, (answer) => {
-      rl.close();
       if (answer === null || answer === undefined || !/\S/.test(answer)) {
         resolve("");
       }
@@ -27,10 +30,13 @@ async function ask(question) {
     });
   });
 }
+
 function streebogHash(str){
-  const buf = Buffer.from(str, 'UTF-8');
-  return hashes.streebog256(buf);
+    const buffer = Buffer.from(str);
+    const digest = gostEngine.getGostDigest({name: 'GOST R 34.11', length: 256, version: 1994});
+    return (Buffer.from(digest.digest(buffer)).toString('hex'));
 }
+
 
 async function showusers(){
 try {
@@ -65,8 +71,10 @@ async function addUser(){
     }
     
     var password;
+    var salt = crypto.randomBytes(3).toString('hex');
     while (true) {
         password = (await ask(`Введите пароль, оставьте пустым для генерации:`));
+        
         if(password == ""){
             password = crypto.randomBytes(3).toString('hex');
             break;
@@ -79,7 +87,7 @@ async function addUser(){
     
     try {
         const users = await new Promise((resolve, reject) => {
-        db.run(`INSERT INTO USERS (ID, Email, Hashkey) VALUES(${id}, "${email}", "${streebogHash(password)}");`, (err, rows) => {
+        db.run(`INSERT INTO USERS (ID, Email, Hashkey, salt) VALUES(${id}, "${email}", "${streebogHash(salt + password)}", "${salt}")`, (err, rows) => {
         if (err) reject(err);
         else {
             resolve(true);
@@ -92,7 +100,6 @@ async function addUser(){
     console.log('Ошибка БД ' + err);
   }
 }
-
 
 async function deleteUser(){
 
@@ -125,7 +132,8 @@ async function editUser(){
     const id = parseInt(await ask(`Введите id для изменения1: `));
     const mode = (await ask(`Выберете:\n1. изменить email\n2. изменить пароль\n3. изменить всё\n\n`))[0];
     var query;
-
+    var salt = crypto.randomBytes(3).toString('hex');
+    
     if(mode == "1" || mode == "3"){
         while (true) {
             email = await ask(`Введите адрес электронной почты:`);
@@ -154,8 +162,8 @@ async function editUser(){
 
     switch(mode){
         case ("1"): query = `UPDATE USERS SET Email = "${email}" WHERE ID = ${id};`; break;
-        case ("2"): query = `UPDATE USERS SET HashKey = "${streebogHash(password)}" WHERE ID = ${id};`; break;
-        case ("3"): query = `UPDATE USERS SET Email = "${email}", HashKey = "${streebogHash(password)}" WHERE ID = ${id};`; break;
+        case ("2"): query = `UPDATE USERS SET HashKey = "${streebogHash(salt + password)}", salt = "${salt}" WHERE ID = ${id};`; break;
+        case ("3"): query = `UPDATE USERS SET Email = "${email}", HashKey = "${streebogHash(salt + password)}", salt = "${salt}" WHERE ID = ${id};`; break;
         default: console.log("неизвестная команда"); return; 
     }
 
@@ -178,10 +186,17 @@ async function editUser(){
 
 
 
-(async () => {
-  while (1) {
+async function ManageUsers(){
     try {
-        console.log("Введите команду (цифрой):\n 1. Вывести список пользователей\n 2. Добавить новго пользователя\n 3. Удалить пользователя\n 4. Редактировать данные пользователя");
+        console.log("Введите команду (цифрой):\n"+
+            "1. Вывести список пользователей\n"+
+            "2. Добавить новго пользователя\n"+
+            "3. Удалить пользователя\n"+
+            "4. Редактировать данные пользователя\n" + 
+            "5. Заблокировать пользователя\n" + 
+            "6. Ввернуться в режим мониторинга логов\n" + 
+            "7. Вывести полный лог сервера"
+        );
         const str = (await ask(`Номер команды:`))[0];
         switch(str){
             case "1": await showusers();
@@ -192,13 +207,22 @@ async function editUser(){
                 break;
             case "4": await editUser();
                 break;
+            case "5": throw new NotImplementedException();
+                break;
+            case "6": return false;
+                break;
+            case "7": 
+            console.log("\n--------------------------------------------------------------------------------------------");
+            console.log(fs.readFileSync('server.log', 'utf-8'));
+            console.log("--------------------------------------------------------------------------------------------\n");
+            break;
             default:
                 console.log("Команда нераспознана");
                 break;
             }
     } catch (err) {
-        console.log("ОШИБКА" + err);
+        console.log("\nОШИБКА " + err + "\n");
     }
-  }
-})();
-
+    return true;
+}
+module.exports = { ManageUsers, ask, rl}; 
